@@ -16,9 +16,10 @@ covid <- paste0("https://github.com/CSSEGISandData/COVID-19/raw/master/csse_covi
   filter(country_region == "US") %>%
   select(-country_region) %>%
   rename(region = province_state) %>%
-  filter(long > -124.6813 & long < -66.5901) %>%
-  filter(time > mdy("03/01/2020"))
-  
+  filter(long > -124.6813 & long < -66.5901 & region != "Grand Princess") %>%
+  filter(time > mdy("03/01/2020")) %>%
+  mutate(cases = if_else(cases==0, NA_real_, cases))
+
 usa <- map_data("state")
 
 animate_map <- usa %>%
@@ -32,19 +33,23 @@ animate_map <- usa %>%
   coord_fixed(1.3) +
   labs(title = "Date: {frame_time}") +
   transition_time(time) +
-  ease_aes('linear')
-
-map_gif <- animate(animate_map, width = 600, height = 400, fps = 30)
+  enter_fade() + 
+  exit_shrink() +
+  ease_aes("sine-in-out")
 
 animate_cases <- covid %>%
   group_by(time) %>%
-  summarise(cases = sum(cases)) %>%
+  summarise(cases = sum(cases, na.rm = T)) %>%
+  ungroup() %>%
   ggplot(aes(x = time, y = cases)) +
   theme_bw() +
   geom_line() +
   transition_reveal(time)
 
-cases_gif <- animate(animate_cases, width = 200, height = 400, fps = 30)
+map_gif <- animate(animate_map, width = 600, height = 400,
+                   end_pause = 20, fps = 30)
+cases_gif <- animate(animate_cases, width = 300, height = 400,
+                     end_pause = 20, fps = 30)
 
 # The following shamelessly stolen from:
 # https://github.com/thomasp85/gganimate/wiki/Animation-Composition
@@ -59,3 +64,9 @@ for(i in 2:100){
 }
 
 new_gif
+
+anim_save(filename = paste0(rstudioapi::getSourceEditorContext()$path %>% dirname(),
+                            "/covidmap_", today(), ".gif"),
+          new_gif)
+
+
